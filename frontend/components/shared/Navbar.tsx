@@ -28,7 +28,7 @@ export default function Navbar() {
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-8 md:flex">
           <Link
-            href="/browse"
+            href="/register/student"
             className="text-sm font-medium text-slate transition hover:text-navy"
           >
             Find a Tutor
@@ -119,7 +119,7 @@ export default function Navbar() {
           <nav className="mx-auto flex max-w-7xl flex-col px-5 py-5 sm:px-8">
 
             <Link
-              href="/browse"
+              href="/register/student"
               onClick={() => setIsOpen(false)}
               className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
             >

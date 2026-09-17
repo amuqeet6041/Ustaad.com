@@ -1,14 +1,25 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { AuthUser, getToken, getUser, clearAuth } from "@/lib/auth";
 
-// Placeholder auth hook — replace with real JWT-based session logic.
 export function useAuth() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const t = getToken();
+    const u = getUser();
+    setToken(t);
+    setUser(u);
     setLoading(false);
   }, []);
 
-  return { user, loading };
+  const logout = useCallback(() => {
+    clearAuth();
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  return { user, token, loading, logout };
 }

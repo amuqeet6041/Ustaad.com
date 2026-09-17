@@ -190,7 +190,7 @@ export default function HowItWorks() {
             </div>
 
             <Link
-              href="/register"
+              href="/register/teacher"
               className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-navy px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:opacity-90"
             >
               Become a Ustaad

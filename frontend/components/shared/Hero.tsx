@@ -47,7 +47,7 @@ export default function Hero() {
             {/* CTA Buttons */}
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/browse"
+                href="/register/student"
                 className="inline-flex items-center justify-center rounded-lg bg-[#B5651D] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:bg-[#9E581C] hover:-translate-y-0.5"
               >
                 Find a Tutor
@@ -55,7 +55,7 @@ export default function Hero() {
               </Link>
 
               <Link
-                href="/register"
+                href="/register/teacher"
                 className="inline-flex items-center justify-center rounded-lg border border-white/15 bg-white/[0.05] px-6 py-3.5 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/10"
               >
                 Become a Ustaad

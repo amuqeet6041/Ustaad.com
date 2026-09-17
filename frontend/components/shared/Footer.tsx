@@ -70,7 +70,7 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/browse"
+                  href="/register/student"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   Find a Tutor
@@ -117,7 +117,7 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/register"
+                  href="/register/teacher"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   Become a Ustaad
@@ -126,7 +126,7 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/register"
+                  href="/register/teacher"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   Create Your Profile
@@ -135,7 +135,7 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/register"
+                  href="/register/teacher"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   Publish a Gig
@@ -220,14 +220,14 @@ export default function Footer() {
             <div className="flex flex-col gap-3 sm:flex-row">
 
               <Link
-                href="/browse"
+                href="/register/student"
                 className="rounded-lg bg-white px-5 py-2.5 text-center text-sm font-bold text-navy transition hover:bg-white/90"
               >
                 Find a Tutor
               </Link>
 
               <Link
-                href="/register"
+                href="/register/teacher"
                 className="rounded-lg border border-white/20 px-5 py-2.5 text-center text-sm font-bold text-white transition hover:bg-white/10"
               >
                 Become a Ustaad
