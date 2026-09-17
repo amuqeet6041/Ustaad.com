@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink;
+  }
+}
+
+@layer components {
+  /* Buttons — see Color Scheme & Usage Guide, section 3 */
+  .btn-primary {
+    @apply bg-navy text-white font-bold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 transition;
+  }
+  .btn-accent {
+    @apply bg-ochre text-white font-bold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 transition;
+  }
+  .btn-outline {
+    @apply border-[1.5px] border-navy text-navy font-bold px-5 py-2.5 rounded-lg text-sm hover:bg-navy-tint transition;
+  }
+  .btn-success {
+    @apply bg-green text-white font-bold px-4 py-2 rounded-md text-sm;
+  }
+  .btn-danger {
+    @apply border-[1.5px] border-error-border text-error-text bg-white font-bold px-4 py-2 rounded-md text-sm;
+  }
+  .btn-disabled {
+    @apply bg-neutral-tint text-disabled-text font-bold px-5 py-2.5 rounded-lg text-sm cursor-not-allowed;
+  }
+
+  /* Status pills — see Color Scheme & Usage Guide, section 4 */
+  .pill-pending    { @apply bg-neutral-tint text-[#7a6a4a] text-xs font-bold px-3 py-1 rounded-full; }
+  .pill-negotiation{ @apply bg-ochre-tint text-ochre text-xs font-bold px-3 py-1 rounded-full; }
+  .pill-accepted   { @apply bg-green-tint text-green text-xs font-bold px-3 py-1 rounded-full; }
+  .pill-declined   { @apply bg-error-tint text-error-text text-xs font-bold px-3 py-1 rounded-full; }
+  .pill-completed  { @apply bg-navy-tint text-navy text-xs font-bold px-3 py-1 rounded-full; }
+  .pill-verified   { @apply bg-green-tint text-green text-xs font-bold px-2 py-1 rounded-md; }
+}
