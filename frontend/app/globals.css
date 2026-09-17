@@ -4,10 +4,9 @@
 
 @layer base {
   body {
-    @apply bg-paper text-ink;
+    @apply bg-[#070A0D] text-white;
   }
 }
-
 @layer components {
   /* Buttons — see Color Scheme & Usage Guide, section 3 */
   .btn-primary {
