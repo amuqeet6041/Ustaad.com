@@ -70,10 +70,10 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/register/student"
+                  href="/tutors"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
-                  Find a Tutor
+                  Find an Ustaad
                 </Link>
               </li>
 
@@ -82,7 +82,7 @@ export default function Footer() {
                   href="/browse"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
-                  Browse Gigs
+                  Browse Marketplace
                 </Link>
               </li>
 
@@ -164,7 +164,7 @@ export default function Footer() {
 
               <li>
                 <a
-                  href="#features"
+                  href="/#features"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   Features
@@ -173,7 +173,7 @@ export default function Footer() {
 
               <li>
                 <a
-                  href="#how-it-works"
+                  href="/#how-it-works"
                   className="text-sm text-white/60 transition hover:text-white"
                 >
                   How It Works

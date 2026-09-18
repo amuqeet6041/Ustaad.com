@@ -47,7 +47,7 @@ export default function Hero() {
             {/* CTA Buttons */}
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <Link
-                href="/register/student"
+                href="/browse"
                 className="inline-flex items-center justify-center rounded-lg bg-[#B5651D] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-black/20 transition hover:bg-[#9E581C] hover:-translate-y-0.5"
               >
                 Find a Tutor
@@ -99,13 +99,19 @@ export default function Hero() {
                   </h3>
                 </div>
 
-                <div className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white/60">
+                <Link
+                  href="/browse"
+                  className="rounded-lg border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white/60 hover:text-white transition"
+                >
                   View all
-                </div>
+                </Link>
               </div>
 
               {/* Tutor 1 */}
-              <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.06] p-4 transition hover:bg-white/[0.09]">
+              <Link
+                href="/gigs/gig-1"
+                className="mb-3 block rounded-xl border border-white/10 bg-white/[0.06] p-4 transition hover:bg-white/[0.09] hover:border-[#B5651D]/40"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#14213D] text-sm font-bold text-white">
                     AK
@@ -127,19 +133,22 @@ export default function Hero() {
                   </div>
 
                   <div className="text-right">
-                    <p className="text-sm font-bold text-white">Rs. 1,500</p>
+                    <p className="text-sm font-bold text-white">Rs. 2,000</p>
                     <p className="text-[10px] text-white/40">/ session</p>
                   </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between text-xs">
-                  <span className="text-[#D18A4A]">★★★★★ 4.9</span>
-                  <span className="text-white/40">120+ sessions</span>
+                  <span className="text-[#D18A4A]">★★★★★ 4.96</span>
+                  <span className="text-white/40">140+ sessions</span>
                 </div>
-              </div>
+              </Link>
 
               {/* Tutor 2 */}
-              <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4">
+              <Link
+                href="/gigs/gig-2"
+                className="block rounded-xl border border-white/10 bg-white/[0.06] p-4 transition hover:bg-white/[0.09] hover:border-[#B5651D]/40"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#B5651D] text-sm font-bold text-white">
                     SA
@@ -161,16 +170,16 @@ export default function Hero() {
                   </div>
 
                   <div className="text-right">
-                    <p className="text-sm font-bold text-white">Rs. 1,200</p>
+                    <p className="text-sm font-bold text-white">Rs. 1,800</p>
                     <p className="text-[10px] text-white/40">/ session</p>
                   </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between text-xs">
-                  <span className="text-[#D18A4A]">★★★★★ 4.8</span>
-                  <span className="text-white/40">85+ sessions</span>
+                  <span className="text-[#D18A4A]">★★★★★ 4.94</span>
+                  <span className="text-white/40">110+ sessions</span>
                 </div>
-              </div>
+              </Link>
 
               {/* Bottom card status */}
               <div className="mt-4 flex items-center justify-between rounded-xl border border-[#B5651D]/20 bg-[#B5651D]/10 px-4 py-3">

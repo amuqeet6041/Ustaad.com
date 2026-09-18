@@ -124,6 +124,26 @@ export default function HowItWorks() {
             ))}
           </div>
 
+          {/* Student CTA */}
+          <div className="mt-8 flex flex-col items-start justify-between gap-5 border-t border-slate/10 pt-7 sm:flex-row sm:items-center">
+            <div>
+              <p className="font-bold text-ink">
+                Ready to find your personal Ustaad?
+              </p>
+              <p className="mt-1 text-sm text-slate">
+                Browse our verified Ustaad network, compare packages, and book your first lesson.
+              </p>
+            </div>
+
+            <Link
+              href="/browse"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-ochre px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:opacity-90"
+            >
+              Browse Marketplace
+              <span>→</span>
+            </Link>
+          </div>
+
         </div>
 
         {/* Teacher Side */}

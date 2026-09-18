@@ -28,28 +28,35 @@ export default function Navbar() {
         {/* Desktop Navigation */}
         <nav className="hidden items-center gap-8 md:flex">
           <Link
-            href="/register/student"
+            href="/tutors"
             className="text-sm font-medium text-slate transition hover:text-navy"
           >
-            Find a Tutor
+            Find an Ustaad
+          </Link>
+
+          <Link
+            href="/browse"
+            className="text-sm font-medium text-slate transition hover:text-navy"
+          >
+            Marketplace
           </Link>
 
           <a
-            href="#how-it-works"
+            href="/#how-it-works"
             className="text-sm font-medium text-slate transition hover:text-navy"
           >
             How It Works
           </a>
 
           <a
-            href="#features"
+            href="/#features"
             className="text-sm font-medium text-slate transition hover:text-navy"
           >
             Features
           </a>
 
           <a
-            href="#become-ustaad"
+            href="/#become-ustaad"
             className="text-sm font-medium text-slate transition hover:text-navy"
           >
             Become a Ustaad
@@ -119,15 +126,23 @@ export default function Navbar() {
           <nav className="mx-auto flex max-w-7xl flex-col px-5 py-5 sm:px-8">
 
             <Link
-              href="/register/student"
+              href="/tutors"
               onClick={() => setIsOpen(false)}
               className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
             >
-              Find a Tutor
+              Find an Ustaad (Tutor Directory)
+            </Link>
+
+            <Link
+              href="/browse"
+              onClick={() => setIsOpen(false)}
+              className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
+            >
+              Marketplace (Programs & Courses)
             </Link>
 
             <a
-              href="#how-it-works"
+              href="/#how-it-works"
               onClick={() => setIsOpen(false)}
               className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
             >
@@ -135,7 +150,7 @@ export default function Navbar() {
             </a>
 
             <a
-              href="#features"
+              href="/#features"
               onClick={() => setIsOpen(false)}
               className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
             >
@@ -143,7 +158,7 @@ export default function Navbar() {
             </a>
 
             <a
-              href="#become-ustaad"
+              href="/#become-ustaad"
               onClick={() => setIsOpen(false)}
               className="border-b border-slate/10 py-3.5 text-sm font-semibold text-ink"
             >
