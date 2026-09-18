@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
-import MarketplaceGigCard from "@/components/shared/MarketplaceGigCard";
+import StaticGigCard from "@/components/shared/StaticGigCard";
 import { getUstaadById, getGigsByUstaad, USTAADS } from "@/lib/marketplaceData";
 
 export default function TutorProfilePage() {
@@ -214,7 +214,7 @@ export default function TutorProfilePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {tutorGigs.map((gig) => (
-                <MarketplaceGigCard key={gig.id} gig={gig} />
+                <StaticGigCard key={gig.id} gig={gig} />
               ))}
             </div>
 

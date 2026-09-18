@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Gig } from "@/lib/marketplaceData";
+import type { Gig } from "@/services/gigService";
+import { formatPrice, formatTeachingMode, getInitials, getStartingPrice } from "@/lib/marketplaceFormatters";
 
 interface Props {
   gig: Gig;
@@ -10,48 +11,45 @@ interface Props {
 
 export default function MarketplaceGigCard({ gig }: Props) {
   const [isFavorited, setIsFavorited] = useState(false);
+  const teacher = gig.teacher;
+  const city = teacher?.city ?? gig.city;
+  const mode = teacher?.teaching_mode ?? null;
+  const startingPrice = getStartingPrice(gig);
 
   return (
     <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-hairline bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-ochre/50 hover:shadow-xl hover:shadow-navy/5">
-      {/* Top Section: Ustaad Header */}
+      {/* Top Section: Teacher Header */}
       <div>
         <div className="flex items-start justify-between gap-3">
-          <Link
-            href={`/tutors/${gig.ustaad.id}`}
-            className="flex items-center gap-3.5 group/author"
-          >
+          {/* Teacher identity — displayed, not linked (no tutor API yet). */}
+          <div className="flex items-center gap-3.5 min-w-0">
             {/* Avatar */}
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${gig.ustaad.avatarGradient} text-sm font-extrabold text-white shadow-sm transition group-hover/author:scale-105`}
-            >
-              {gig.ustaad.initials}
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#14213D] to-[#1E3A8A] text-sm font-extrabold text-white shadow-sm">
+              {teacher ? getInitials(teacher.name) : "U"}
             </div>
 
             {/* Name & Credentials */}
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-bold text-ink transition group-hover/author:text-navy">
-                  {gig.ustaad.name}
-                </span>
-                {gig.ustaad.verified && (
-                  <span
-                    title="Verified Academic Credentials"
-                    className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-green-tint text-[10px] font-bold text-green"
-                  >
-                    ✓
-                  </span>
-                )}
-              </div>
-              <p className="truncate text-xs font-medium text-slate">
-                {gig.ustaad.education.split("·")[0].trim()}
+              <p className="truncate text-sm font-bold text-ink">
+                {teacher ? teacher.name : "Teacher"}
               </p>
+              {teacher?.education && (
+                <p className="truncate text-xs font-medium text-slate">
+                  {teacher.education.split("·")[0].trim()}
+                </p>
+              )}
+              {!teacher?.education && teacher?.bio && (
+                <p className="truncate text-xs font-medium text-slate">
+                  {teacher.bio}
+                </p>
+              )}
             </div>
-          </Link>
+          </div>
 
-          {/* Bookmark Button */}
+          {/* Bookmark Button (local UI only) */}
           <button
             type="button"
-            aria-label={isFavorited ? "Remove from saved" : "Save this Ustaad"}
+            aria-label={isFavorited ? "Remove from saved" : "Save this gig"}
             onClick={() => setIsFavorited(!isFavorited)}
             className="rounded-lg p-2 text-slate/40 transition hover:bg-paper hover:text-ochre"
           >
@@ -70,61 +68,52 @@ export default function MarketplaceGigCard({ gig }: Props) {
           </button>
         </div>
 
-        {/* Visual Mentorship Card Header */}
+        {/* Gig Card Header */}
         <Link href={`/gigs/${gig.id}`} className="block mt-4">
           <div className="relative overflow-hidden rounded-xl border border-hairline/60 bg-paper p-4 transition group-hover:bg-ochre-tint/30">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="rounded-md bg-navy px-2.5 py-1 text-[11px] font-bold text-white tracking-wide">
-                {gig.subject}
+                {gig.subject || "Tutoring"}
               </span>
-              <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate shadow-xs border border-hairline">
-                📍 {gig.ustaad.city} ({gig.ustaad.mode})
-              </span>
+              {(city || mode) && (
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate shadow-xs border border-hairline">
+                  📍 {[city, mode ? formatTeachingMode(mode) : null].filter(Boolean).join(" · ")}
+                </span>
+              )}
             </div>
 
             <h3 className="mt-3 line-clamp-2 text-sm font-bold text-ink leading-snug transition group-hover:text-navy">
               {gig.title}
             </h3>
 
-            {/* Quick Pedagogy Badges */}
-            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-slate">
-              <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 border border-hairline/70">
-                <span className="text-green font-bold">✓</span> 1-on-1 Class
-              </span>
-              <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 border border-hairline/70">
-                <span className="text-green font-bold">✓</span> Notes Included
-              </span>
-            </div>
+            {gig.teacher?.teaching_mode && (
+              <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-slate">
+                <span className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 border border-hairline/70">
+                  🎓 {formatTeachingMode(gig.teacher.teaching_mode)}
+                </span>
+              </div>
+            )}
           </div>
         </Link>
       </div>
 
-      {/* Bottom Information: Rating, Match Score, Transparent Price */}
+      {/* Bottom Information: Transparent Price */}
       <div className="mt-5 border-t border-hairline pt-4">
-        <div className="flex items-center justify-between text-xs">
-          {/* Rating */}
-          <div className="flex items-center gap-1">
-            <span className="text-ochre text-sm font-black">★</span>
-            <span className="font-extrabold text-ink">{gig.ustaad.rating.toFixed(2)}</span>
-            <span className="text-slate text-[11px]">({gig.ustaad.reviewCount})</span>
-          </div>
-
-          {/* AI Match Score */}
-          <span className="rounded-full bg-ochre-tint px-2.5 py-0.5 text-[11px] font-extrabold text-ochre">
-            {gig.matchPercent}% Match
-          </span>
-        </div>
-
         {/* Pricing Row */}
-        <div className="mt-3.5 flex items-baseline justify-between pt-1">
+        <div className="flex items-baseline justify-between pt-1">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-slate">
-            Tuition Fee
+            Starting From
           </span>
           <div className="text-right">
-            <span className="text-base font-extrabold text-navy">
-              Rs. {gig.startingPrice.toLocaleString()}
-            </span>
-            <span className="text-[11px] font-medium text-slate ml-1">/ session</span>
+            {startingPrice != null ? (
+              <span className="text-base font-extrabold text-navy">
+                {formatPrice(startingPrice)}
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-slate">
+                Pricing on request
+              </span>
+            )}
           </div>
         </div>
       </div>

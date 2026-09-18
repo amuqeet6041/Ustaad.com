@@ -32,6 +32,16 @@ if config.config_file_name is not None:
 # Import the project's metadata and models so autogenerate detects them.
 from database.base import Base  # noqa: E402
 import models.user  # noqa: E402  (registers the User model on Base.metadata)
+import models.classroom  # noqa: E402  (registers the Classroom model on Base.metadata)
+import models.session  # noqa: E402  (registers the Session model on Base.metadata)
+import models.google_calendar_credential  # noqa: E402  (registers the GoogleCalendarCredential model on Base.metadata)
+import models.gig  # noqa: E402  (registers the Gig model on Base.metadata)
+import models.teacher_profile  # noqa: E402  (registers the TeacherProfile model on Base.metadata)
+import models.gig_package  # noqa: E402  (registers the GigPackage model on Base.metadata)
+import models.enrollment  # noqa: E402  (registers the Enrollment model on Base.metadata)
+
+# gigs.teacher_id references `users.id` (teachers are User rows with
+# role="teacher"); there is no separate `teachers` table.
 
 target_metadata = Base.metadata
 

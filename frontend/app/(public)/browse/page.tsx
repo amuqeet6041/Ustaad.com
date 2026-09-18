@@ -1,97 +1,135 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
 import MarketplaceGigCard from "@/components/shared/MarketplaceGigCard";
-import { GIGS, POPULAR_SUBJECTS, CITIES } from "@/lib/marketplaceData";
+import { getGigs } from "@/services/gigService";
+import type { Gig } from "@/services/gigService";
+import { getStartingPrice } from "@/lib/marketplaceFormatters";
+
+type SortKey = "newest" | "price_asc" | "price_desc";
+
+const DEFAULT_MAX_PRICE = 20000;
 
 export default function BrowseMarketplacePage() {
+  const [gigs, setGigs] = useState<Gig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("All");
   const [selectedCity, setSelectedCity] = useState("All Cities");
   const [selectedMode, setSelectedMode] = useState<string>("All");
-  const [selectedLevel, setSelectedLevel] = useState<string>("All");
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [maxBudget, setMaxBudget] = useState<number>(20000);
-  const [sortBy, setSortBy] = useState<"match" | "rating" | "price_asc" | "price_desc" | "reviews">("match");
+  const [maxPrice, setMaxPrice] = useState<number>(DEFAULT_MAX_PRICE);
+  const [sortBy, setSortBy] = useState<SortKey>("newest");
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
-  // Filter and Sort Gigs
+  const loadMarketplace = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const data = await getGigs();
+      setGigs(data);
+    } catch {
+      setLoadError(true);
+      setGigs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadMarketplace();
+  }, [loadMarketplace]);
+
+  // Data-driven filter options derived from the real API response.
+  const { subjects, cities, priceCeiling } = useMemo(() => {
+    const subjectSet = new Set<string>();
+    const citySet = new Set<string>();
+    let highest = DEFAULT_MAX_PRICE;
+    for (const gig of gigs) {
+      if (gig.subject) subjectSet.add(gig.subject);
+      if (gig.city) citySet.add(gig.city);
+      const price = getStartingPrice(gig);
+      if (price != null) highest = Math.max(highest, price);
+    }
+    return {
+      subjects: Array.from(subjectSet).sort((a, b) => a.localeCompare(b)),
+      cities: Array.from(citySet).sort((a, b) => a.localeCompare(b)),
+      priceCeiling: highest,
+    };
+  }, [gigs]);
+
+  const currentMaxPrice = Math.min(maxPrice, priceCeiling);
+
+  const matchesMode = (gig: Gig, mode: string): boolean => {
+    if (mode === "All") return true;
+    const teachingMode = gig.teacher?.teaching_mode;
+    if (!teachingMode) return false;
+    if (mode === "Online") return teachingMode === "online" || teachingMode === "both";
+    if (mode === "In-Person") return teachingMode === "in_person" || teachingMode === "both";
+    return false;
+  };
+
+  // Client-side filtering/sorting over the already-loaded real gigs.
   const filteredGigs = useMemo(() => {
-    let result = GIGS.filter((gig) => {
-      // Search query
+    let result = gigs.filter((gig) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = gig.title.toLowerCase().includes(q);
-        const matchesSubject = gig.subject.toLowerCase().includes(q);
-        const matchesUstaad = gig.ustaad.name.toLowerCase().includes(q);
-        const matchesCity = gig.ustaad.city.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesSubject && !matchesUstaad && !matchesCity) {
+        const matchesTitle = (gig.title ?? "").toLowerCase().includes(q);
+        const matchesSubject = (gig.subject ?? "").toLowerCase().includes(q);
+        const matchesTeacher = (gig.teacher?.name ?? "").toLowerCase().includes(q);
+        const matchesCity = (gig.city ?? gig.teacher?.city ?? "").toLowerCase().includes(q);
+        if (!matchesTitle && !matchesSubject && !matchesTeacher && !matchesCity) {
           return false;
         }
       }
 
-      // Subject filter
-      if (selectedSubject !== "All" && !gig.subject.toLowerCase().includes(selectedSubject.toLowerCase())) {
+      if (selectedSubject !== "All" && gig.subject !== selectedSubject) {
         return false;
       }
 
-      // City filter
-      if (selectedCity !== "All Cities") {
-        if (selectedCity === "Online Only" && gig.ustaad.mode !== "Online") {
-          return false;
-        } else if (selectedCity !== "Online Only" && gig.ustaad.city !== selectedCity) {
-          return false;
-        }
-      }
-
-      // Mode filter
-      if (selectedMode !== "All") {
-        if (selectedMode === "Online" && gig.ustaad.mode === "In-Person") return false;
-        if (selectedMode === "In-Person" && gig.ustaad.mode === "Online") return false;
-      }
-
-      // Level filter
-      if (selectedLevel !== "All" && gig.ustaad.level !== selectedLevel) {
+      if (selectedCity !== "All Cities" && gig.city !== selectedCity) {
         return false;
       }
 
-      // Verified filter
-      if (verifiedOnly && !gig.ustaad.verified) {
+      if (!matchesMode(gig, selectedMode)) {
         return false;
       }
 
-      // Budget filter
-      if (gig.startingPrice > maxBudget) {
+      const startingPrice = getStartingPrice(gig);
+      if (startingPrice != null && startingPrice > currentMaxPrice) {
         return false;
       }
 
       return true;
     });
 
-    // Sorting
     result.sort((a, b) => {
-      if (sortBy === "match") return b.matchPercent - a.matchPercent;
-      if (sortBy === "rating") return b.ustaad.rating - a.ustaad.rating;
-      if (sortBy === "price_asc") return a.startingPrice - b.startingPrice;
-      if (sortBy === "price_desc") return b.startingPrice - a.startingPrice;
-      if (sortBy === "reviews") return b.ustaad.reviewCount - a.ustaad.reviewCount;
-      return 0;
+      if (sortBy === "price_asc" || sortBy === "price_desc") {
+        const pa = getStartingPrice(a);
+        const pb = getStartingPrice(b);
+        if (pa == null && pb == null) return 0;
+        if (pa == null) return 1;
+        if (pb == null) return -1;
+        return sortBy === "price_asc" ? pa - pb : pb - pa;
+      }
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     });
 
     return result;
-  }, [searchQuery, selectedSubject, selectedCity, selectedMode, selectedLevel, verifiedOnly, maxBudget, sortBy]);
+  }, [gigs, searchQuery, selectedSubject, selectedCity, selectedMode, currentMaxPrice, sortBy]);
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedSubject("All");
     setSelectedCity("All Cities");
     setSelectedMode("All");
-    setSelectedLevel("All");
-    setVerifiedOnly(false);
-    setMaxBudget(20000);
-    setSortBy("match");
+    setMaxPrice(DEFAULT_MAX_PRICE);
+    setSortBy("newest");
   };
 
   const hasActiveFilters =
@@ -99,9 +137,98 @@ export default function BrowseMarketplacePage() {
     selectedSubject !== "All" ||
     selectedCity !== "All Cities" ||
     selectedMode !== "All" ||
-    selectedLevel !== "All" ||
-    verifiedOnly ||
-    maxBudget < 20000;
+    currentMaxPrice < priceCeiling;
+
+  const hasRealGigs = gigs.length > 0;
+
+  const filterSidebar = (
+    <div className="rounded-2xl border border-hairline bg-white p-6 shadow-xs space-y-6">
+      <div className="flex items-center justify-between pb-4 border-b border-hairline">
+        <h2 className="text-sm font-extrabold uppercase tracking-wider text-navy flex items-center gap-2">
+          <svg className="h-4 w-4 text-ochre" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          Filter Mentors
+        </h2>
+        {hasActiveFilters && (
+          <button
+            onClick={resetFilters}
+            className="text-xs font-bold text-ochre hover:underline"
+          >
+            Reset all
+          </button>
+        )}
+      </div>
+
+      {/* City Selection (data-driven) */}
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate mb-2">
+          Campus / Location
+        </label>
+        <select
+          value={selectedCity}
+          onChange={(e) => setSelectedCity(e.target.value)}
+          className="w-full rounded-lg border border-hairline bg-paper px-3 py-2.5 text-xs font-semibold text-ink transition focus:border-navy focus:bg-white focus:outline-none"
+        >
+          <option value="All Cities">All Cities</option>
+          {cities.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Mode Selection */}
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wider text-slate mb-2">
+          Teaching Mode
+        </label>
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-hairline bg-paper p-1">
+          {["All", "Online", "In-Person"].map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setSelectedMode(mode)}
+              className={`rounded-md py-1.5 text-center text-xs font-semibold transition ${
+                selectedMode === mode
+                  ? "bg-navy text-white shadow-xs"
+                  : "text-slate hover:text-ink"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Maximum Price Range */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-bold uppercase tracking-wider text-slate">
+            Max Price
+          </label>
+          <span className="text-xs font-extrabold text-navy">
+            {currentMaxPrice < priceCeiling
+              ? `Rs. ${currentMaxPrice.toLocaleString()}`
+              : "No limit"}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={0}
+          max={priceCeiling}
+          step={500}
+          value={Math.min(maxPrice, priceCeiling)}
+          onChange={(e) => setMaxPrice(Number(e.target.value))}
+          className="w-full accent-navy cursor-pointer"
+        />
+        <div className="flex justify-between text-[11px] text-slate mt-1">
+          <span>Rs. 0</span>
+          <span>Rs. {priceCeiling.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col justify-between">
@@ -127,11 +254,11 @@ export default function BrowseMarketplacePage() {
                 </span>
               </h1>
               <p className="mt-4 text-base leading-relaxed text-slate sm:text-lg">
-                Connect with verified subject specialists, Cambridge mentors, and university position holders. Compare transparent learning packages with zero hidden fees and full escrow protection.
+                Connect with subject specialists, Cambridge mentors, and university position holders. Compare transparent learning packages with clear, no-surprise pricing.
               </p>
             </div>
 
-            {/* Human-Made Search & Filter Controls */}
+            {/* Search & Filter Controls */}
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate/50">
@@ -169,25 +296,37 @@ export default function BrowseMarketplacePage() {
               </button>
             </div>
 
-            {/* Popular Subject Chips */}
-            <div className="mt-6 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate mr-1">
-                Popular Subjects:
-              </span>
-              {POPULAR_SUBJECTS.map((subject) => (
+            {/* Data-Driven Subject Chips */}
+            {subjects.length > 0 && (
+              <div className="mt-6 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate mr-1">
+                  Subjects:
+                </span>
                 <button
-                  key={subject}
-                  onClick={() => setSelectedSubject(subject)}
+                  onClick={() => setSelectedSubject("All")}
                   className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
-                    selectedSubject === subject
+                    selectedSubject === "All"
                       ? "bg-navy text-white shadow-xs"
                       : "border border-hairline bg-white text-slate hover:border-navy/30 hover:text-ink"
                   }`}
                 >
-                  {subject}
+                  All
                 </button>
-              ))}
-            </div>
+                {subjects.map((subject) => (
+                  <button
+                    key={subject}
+                    onClick={() => setSelectedSubject(subject)}
+                    className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition ${
+                      selectedSubject === subject
+                        ? "bg-navy text-white shadow-xs"
+                        : "border border-hairline bg-white text-slate hover:border-navy/30 hover:text-ink"
+                    }`}
+                  >
+                    {subject}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -196,172 +335,49 @@ export default function BrowseMarketplacePage() {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
             {/* Filter Sidebar */}
             <aside className={`lg:block ${showMobileFilters ? "block" : "hidden"} space-y-6`}>
-              <div className="rounded-2xl border border-hairline bg-white p-6 shadow-xs space-y-6">
-                <div className="flex items-center justify-between pb-4 border-b border-hairline">
-                  <h2 className="text-sm font-extrabold uppercase tracking-wider text-navy flex items-center gap-2">
-                    <svg className="h-4 w-4 text-ochre" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                    </svg>
-                    Filter Mentors
-                  </h2>
-                  {hasActiveFilters && (
-                    <button
-                      onClick={resetFilters}
-                      className="text-xs font-bold text-ochre hover:underline"
-                    >
-                      Reset all
-                    </button>
-                  )}
-                </div>
-
-                {/* City Selection */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate mb-2">
-                    Campus / Location
-                  </label>
-                  <select
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                    className="w-full rounded-lg border border-hairline bg-paper px-3 py-2.5 text-xs font-semibold text-ink transition focus:border-navy focus:bg-white focus:outline-none"
-                  >
-                    {CITIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Mode Selection */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate mb-2">
-                    Teaching Mode
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 rounded-lg border border-hairline bg-paper p-1">
-                    {["All", "Online", "In-Person"].map((mode) => (
-                      <button
-                        key={mode}
-                        onClick={() => setSelectedMode(mode)}
-                        className={`rounded-md py-1.5 text-center text-xs font-semibold transition ${
-                          selectedMode === mode
-                            ? "bg-navy text-white shadow-xs"
-                            : "text-slate hover:text-ink"
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Level Selection */}
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate mb-2">
-                    Teacher Standing
-                  </label>
-                  <select
-                    value={selectedLevel}
-                    onChange={(e) => setSelectedLevel(e.target.value)}
-                    className="w-full rounded-lg border border-hairline bg-paper px-3 py-2.5 text-xs font-semibold text-ink transition focus:border-navy focus:bg-white focus:outline-none"
-                  >
-                    <option value="All">All Ustaad Standings</option>
-                    <option value="Top Rated Ustaad">Top Rated Ustaad</option>
-                    <option value="Level 2 Ustaad">Level 2 Ustaad</option>
-                    <option value="Rising Star">Rising Star</option>
-                  </select>
-                </div>
-
-                {/* Maximum Price Range */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate">
-                      Max Price / Session
-                    </label>
-                    <span className="text-xs font-extrabold text-navy">
-                      Rs. {maxBudget.toLocaleString()}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={1000}
-                    max={20000}
-                    step={500}
-                    value={maxBudget}
-                    onChange={(e) => setMaxBudget(Number(e.target.value))}
-                    className="w-full accent-navy cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[11px] text-slate mt-1">
-                    <span>Rs. 1,000</span>
-                    <span>Rs. 20,000</span>
-                  </div>
-                </div>
-
-                {/* Verified Only Checkbox */}
-                <div className="pt-2 border-t border-hairline">
-                  <label className="flex items-start gap-2.5 text-xs font-semibold text-ink cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={verifiedOnly}
-                      onChange={(e) => setVerifiedOnly(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 rounded border-hairline text-navy focus:ring-navy"
-                    />
-                    <span>Show verified degrees & credentials only</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Escrow Guarantee Callout */}
-              <div className="rounded-2xl border border-green-tint bg-green-tint/50 p-5 text-xs space-y-2">
-                <div className="flex items-center gap-2 font-bold text-green">
-                  <span>🛡️</span>
-                  <span>Ustaad Escrow Protection</span>
-                </div>
-                <p className="text-slate leading-relaxed">
-                  Your tuition fees are kept in safe custody until your scheduled session is successfully conducted.
-                </p>
-              </div>
+              {filterSidebar}
             </aside>
 
             {/* Results Grid Column */}
             <div className="lg:col-span-3">
               {/* Header Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-hairline">
-                <div>
-                  <h2 className="text-xl font-bold text-ink">
-                    {filteredGigs.length}{" "}
-                    <span className="font-normal text-slate">
-                      {filteredGigs.length === 1 ? "learning program" : "learning programs"} found
-                    </span>
-                  </h2>
-                  {selectedSubject !== "All" && (
-                    <p className="text-xs text-slate mt-0.5">
-                      Curated offerings in <span className="font-bold text-navy">{selectedSubject}</span>
-                    </p>
-                  )}
-                </div>
+              {!loading && !loadError && hasRealGigs && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-hairline">
+                  <div>
+                    <h2 className="text-xl font-bold text-ink">
+                      {filteredGigs.length}{" "}
+                      <span className="font-normal text-slate">
+                        {filteredGigs.length === 1 ? "learning program" : "learning programs"} found
+                      </span>
+                    </h2>
+                    {selectedSubject !== "All" && (
+                      <p className="text-xs text-slate mt-0.5">
+                        Offerings in <span className="font-bold text-navy">{selectedSubject}</span>
+                      </p>
+                    )}
+                  </div>
 
-                {/* Sort dropdown */}
-                <div className="flex items-center gap-2">
-                  <label htmlFor="sortSelect" className="text-xs font-semibold text-slate whitespace-nowrap">
-                    Sort by:
-                  </label>
-                  <select
-                    id="sortSelect"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="rounded-lg border border-hairline bg-white px-3 py-2 text-xs font-bold text-ink transition focus:border-navy focus:outline-none"
-                  >
-                    <option value="match">AI Match Score</option>
-                    <option value="rating">Highest Rated</option>
-                    <option value="price_asc">Price: Low to High</option>
-                    <option value="price_desc">Price: High to Low</option>
-                    <option value="reviews">Most Reviewed</option>
-                  </select>
+                  {/* Sort dropdown */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="sortSelect" className="text-xs font-semibold text-slate whitespace-nowrap">
+                      Sort by:
+                    </label>
+                    <select
+                      id="sortSelect"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as SortKey)}
+                      className="rounded-lg border border-hairline bg-white px-3 py-2 text-xs font-bold text-ink transition focus:border-navy focus:outline-none"
+                    >
+                      <option value="newest">Newest</option>
+                      <option value="price_asc">Price: Low to High</option>
+                      <option value="price_desc">Price: High to Low</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Active Filter Pills */}
-              {hasActiveFilters && (
+              {!loading && !loadError && hasRealGigs && hasActiveFilters && (
                 <div className="flex flex-wrap items-center gap-2 py-4">
                   <span className="text-xs font-semibold text-slate">Active filters:</span>
                   {selectedSubject !== "All" && (
@@ -382,22 +398,10 @@ export default function BrowseMarketplacePage() {
                       <button onClick={() => setSelectedMode("All")} className="text-slate hover:text-ink">✕</button>
                     </span>
                   )}
-                  {selectedLevel !== "All" && (
+                  {currentMaxPrice < priceCeiling && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1 text-xs font-medium text-ink shadow-2xs">
-                      Standing: {selectedLevel}
-                      <button onClick={() => setSelectedLevel("All")} className="text-slate hover:text-ink">✕</button>
-                    </span>
-                  )}
-                  {verifiedOnly && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1 text-xs font-medium text-ink shadow-2xs">
-                      Verified Credentials
-                      <button onClick={() => setVerifiedOnly(false)} className="text-slate hover:text-ink">✕</button>
-                    </span>
-                  )}
-                  {maxBudget < 20000 && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-1 text-xs font-medium text-ink shadow-2xs">
-                      Under Rs. {maxBudget.toLocaleString()}
-                      <button onClick={() => setMaxBudget(20000)} className="text-slate hover:text-ink">✕</button>
+                      Under Rs. {currentMaxPrice.toLocaleString()}
+                      <button onClick={() => setMaxPrice(DEFAULT_MAX_PRICE)} className="text-slate hover:text-ink">✕</button>
                     </span>
                   )}
                   <button
@@ -409,15 +413,55 @@ export default function BrowseMarketplacePage() {
                 </div>
               )}
 
-              {/* Cards Grid */}
-              {filteredGigs.length > 0 ? (
+              {/* Results Body */}
+              {loading ? (
+                <div className="grid grid-cols-1 gap-6 pt-6 sm:grid-cols-2 xl:grid-cols-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-64 animate-pulse rounded-2xl border border-hairline bg-white p-6"
+                    >
+                      <div className="h-4 w-2/3 rounded bg-hairline" />
+                      <div className="mt-5 h-24 rounded-xl bg-hairline" />
+                      <div className="mt-5 h-4 w-full rounded bg-hairline" />
+                      <div className="mt-3 h-4 w-1/2 rounded bg-hairline" />
+                    </div>
+                  ))}
+                </div>
+              ) : loadError ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-white p-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-paper text-2xl text-slate">
+                    ⚠️
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold text-ink">Unable to load marketplace.</h3>
+                  <p className="mt-1.5 max-w-sm text-sm text-slate">
+                    Please try again.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={loadMarketplace}
+                    className="mt-6 rounded-xl bg-navy px-6 py-2.5 text-xs font-bold text-white shadow-sm transition hover:opacity-90"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : !hasRealGigs ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-white p-16 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-paper text-2xl text-slate">
+                    🎓
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold text-ink">No learning programs yet</h3>
+                  <p className="mt-1.5 max-w-sm text-sm text-slate">
+                    The marketplace is getting ready. Check back soon for new teachers and programs.
+                  </p>
+                </div>
+              ) : filteredGigs.length > 0 ? (
                 <div className="grid grid-cols-1 gap-6 pt-6 sm:grid-cols-2 xl:grid-cols-3">
                   {filteredGigs.map((gig) => (
                     <MarketplaceGigCard key={gig.id} gig={gig} />
                   ))}
                 </div>
               ) : (
-                /* Empty state */
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-white p-16 text-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-paper text-2xl text-slate">
                     🔍

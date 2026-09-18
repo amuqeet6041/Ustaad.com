@@ -1,241 +1,327 @@
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
-from typing import Optional, List
 import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.orm import Session as DbSession, selectinload
+
+from api.routes.auth import get_current_user
+from database.session import get_db
+from models.gig import Gig, GigStatus
+from models.gig_package import GigPackage, GigPackageTier
+from models.teacher_profile import TeacherProfile
+from models.user import User, UserRole
+from schemas.gig import GigCreate, GigOut, GigTeacherOut, GigUpdate
+from schemas.gig_package import GigPackageOut
 
 router = APIRouter()
 
-class PackageTier(BaseModel):
-    name: str
-    title: str
-    description: str
-    price: int
-    duration_minutes: int
-    sessions_count: int
-    delivery_days: int
-    features: List[str]
+# Marketplace-visible statuses for the public listing/detail endpoints.
+_PUBLIC_STATUSES = [GigStatus.approved, GigStatus.active]
 
-class GigResponse(BaseModel):
-    id: str
-    title: str
-    category: str
-    subject: str
-    ustaad_name: str
-    ustaad_title: str
-    ustaad_level: str
-    rating: float
-    review_count: int
-    city: str
-    teaching_mode: str
-    starting_price: int
-    match_percent: int
-    verified: bool
+# Canonical marketplace tier ordering: Basic → Standard → Premium.
+_TIER_RANK = {
+    GigPackageTier.basic: 0,
+    GigPackageTier.standard: 1,
+    GigPackageTier.premium: 2,
+}
 
-class GigDetailResponse(GigResponse):
-    overview: str
-    learning_outcomes: List[str]
-    packages: dict[str, PackageTier]
-    faqs: List[dict[str, str]]
 
-SAMPLE_GIGS = [
-    {
-        "id": "gig-1",
-        "title": "I will master Cambridge O/A-Level Physics with Past Papers & Problem Solving",
-        "category": "STEM",
-        "subject": "Physics",
-        "ustaad_name": "Dr. Ahmed Khan",
-        "ustaad_title": "Senior Cambridge O/A-Level Mathematics & Physics Specialist",
-        "ustaad_level": "Top Rated Ustaad",
-        "rating": 4.96,
-        "review_count": 148,
-        "city": "Lahore",
-        "teaching_mode": "Both",
-        "starting_price": 2000,
-        "match_percent": 97,
-        "verified": True,
-        "overview": "Struggling with Kinematics, Electromagnetism, or Space Physics? Join this intensive exam-focused tutoring package.",
-        "learning_outcomes": [
-            "Deep conceptual mastery of Cambridge O/A-Level Physics syllabus",
-            "Examiner-approved answering techniques for 4-mark and 6-mark questions",
-            "Paper 1 MCQ elimination tricks that save 15+ minutes",
-        ],
-        "packages": {
-            "basic": {
-                "name": "Basic",
-                "title": "Concept Diagnostic & 1 Topic Focus",
-                "description": "One 60-minute intensive 1-on-1 session covering any single difficult topic.",
-                "price": 2000,
-                "duration_minutes": 60,
-                "sessions_count": 1,
-                "delivery_days": 1,
-                "features": ["1-on-1 live session (60 mins)", "PDF notes & formulas", "Session recording"],
-            },
-            "standard": {
-                "name": "Standard",
-                "title": "Unit Mastery Bundle (4 Sessions)",
-                "description": "Four 60-minute sessions covering an entire syllabus unit with homework review.",
-                "price": 7500,
-                "duration_minutes": 240,
-                "sessions_count": 4,
-                "delivery_days": 14,
-                "features": ["4 live sessions", "Full formula pack", "WhatsApp Q&A support"],
-            },
-            "premium": {
-                "name": "Premium",
-                "title": "Complete Exam Sprint (10 Sessions + Mocks)",
-                "description": "Ten 60-minute sessions covering high-yield topics + 2 full graded mock exams.",
-                "price": 18000,
-                "duration_minutes": 600,
-                "sessions_count": 10,
-                "delivery_days": 30,
-                "features": ["10 intensive classes", "2 Mock Exams graded", "24/7 priority mentorship"],
-            },
-        },
-        "faqs": [
-            {"question": "How do classes take place?", "answer": "Conducted via Zoom/Google Meet with interactive whiteboard."},
-        ],
-    },
-    {
-        "id": "gig-2",
-        "title": "I will coach you for IELTS Band 8+ with Intensive Speaking & Essay Correction",
-        "category": "Languages",
-        "subject": "IELTS & English",
-        "ustaad_name": "Sara Ahmed",
-        "ustaad_title": "Certified IELTS Master Coach (Band 8.5) & Corporate English Trainer",
-        "ustaad_level": "Top Rated Ustaad",
-        "rating": 4.94,
-        "review_count": 112,
-        "city": "Karachi",
-        "teaching_mode": "Online",
-        "starting_price": 1800,
-        "match_percent": 95,
-        "verified": True,
-        "overview": "Aiming for Canadian PR, UK PLAB, or scholarships requiring Band 7.5 to 8.5? Get direct coaching.",
-        "learning_outcomes": [
-            "Master IELTS Writing Task 2 structure",
-            "Eliminate hesitations in Speaking test",
-        ],
-        "packages": {
-            "basic": {
-                "name": "Basic",
-                "title": "1 Mock Speaking Interview + 1 Essay Evaluation",
-                "description": "One 45-minute live speaking simulation + detailed feedback on 1 essay.",
-                "price": 1800,
-                "duration_minutes": 45,
-                "sessions_count": 1,
-                "delivery_days": 1,
-                "features": ["1 Live Mock Speaking test", "1 Writing Task 2 correction"],
-            },
-            "standard": {
-                "name": "Standard",
-                "title": "Complete 4-Session IELTS Booster",
-                "description": "Four 60-minute sessions focused on Writing and Speaking + 4 essays graded.",
-                "price": 6500,
-                "duration_minutes": 240,
-                "sessions_count": 4,
-                "delivery_days": 10,
-                "features": ["4 Live classes", "4 Essays evaluated", "WhatsApp voice drills"],
-            },
-            "premium": {
-                "name": "Premium",
-                "title": "Comprehensive Band 8.5 Masterclass (8 Sessions)",
-                "description": "Full preparation covering all 4 modules with 8 essays and 3 full mocks.",
-                "price": 13000,
-                "duration_minutes": 480,
-                "sessions_count": 8,
-                "delivery_days": 25,
-                "features": ["8 live sessions", "8 Essays graded", "3 Full mock exams"],
-            },
-        },
-        "faqs": [
-            {"question": "Is this for Academic and General?", "answer": "Yes, both formats are supported."},
-        ],
-    },
-    {
-        "id": "gig-3",
-        "title": "I will mentor you in Modern Full-Stack Python, FastAPI & React from Scratch",
-        "category": "Programming",
-        "subject": "Python & React",
-        "ustaad_name": "Hamza Malik",
-        "ustaad_title": "Full-Stack Software Engineer & Python / Web Development Mentor",
-        "ustaad_level": "Level 2 Ustaad",
-        "rating": 4.91,
-        "review_count": 84,
-        "city": "Islamabad",
-        "teaching_mode": "Both",
-        "starting_price": 2500,
-        "match_percent": 94,
-        "verified": True,
-        "overview": "Build real, portfolio-grade web applications with a senior software engineer.",
-        "learning_outcomes": [
-            "Build and deploy full-stack production-ready web apps",
-            "Master async Python, Pydantic schemas, and SQLAlchemy",
-        ],
-        "packages": {
-            "basic": {
-                "name": "Basic",
-                "title": "Code Review & 1-on-1 Debugging",
-                "description": "One 60-minute live screen-share session.",
-                "price": 2500,
-                "duration_minutes": 60,
-                "sessions_count": 1,
-                "delivery_days": 1,
-                "features": ["60 mins live coding", "Architecture review"],
-            },
-            "standard": {
-                "name": "Standard",
-                "title": "4-Session Project Accelerator",
-                "description": "Four 75-minute sessions building an end-to-end full-stack project.",
-                "price": 9000,
-                "duration_minutes": 300,
-                "sessions_count": 4,
-                "delivery_days": 14,
-                "features": ["4 sessions (75m each)", "Git repo starter templates"],
-            },
-            "premium": {
-                "name": "Premium",
-                "title": "Full-Stack Career Mentorship",
-                "description": "Comprehensive 8-week mentorship including a production SaaS project.",
-                "price": 17500,
-                "duration_minutes": 600,
-                "sessions_count": 8,
-                "delivery_days": 30,
-                "features": ["8 intensive sessions", "Deployed SaaS project", "Resume review"],
-            },
-        },
-        "faqs": [
-            {"question": "Beginners welcome?", "answer": "Yes, zero prior experience required."},
-        ],
-    },
-]
+def _parse_gig_id(gig_id: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(gig_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gig not found")
 
-@router.get("", response_model=List[GigResponse])
-def list_gigs():
-    """List all available tutor service offerings."""
-    return SAMPLE_GIGS
 
-@router.get("/{gig_id}", response_model=GigDetailResponse)
-def get_gig(gig_id: str):
-    """Retrieve full details of a specific gig including tiered packages."""
-    for gig in SAMPLE_GIGS:
-        if gig["id"] == gig_id:
-            return gig
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gig not found")
+def _get_owned_gig(db: DbSession, gig_id: str, current_user: User) -> Gig:
+    """Return the caller's own gig, or 404/403 when the caller has no access.
 
-@router.post("", status_code=status.HTTP_201_CREATED)
-def create_gig(payload: dict):
-    """Create a new gig (draft/submitted status)."""
-    new_id = f"gig-{uuid.uuid4().hex[:6]}"
-    payload["id"] = new_id
-    payload["status"] = "submitted"
-    return {"message": "Gig submitted for moderation", "gig_id": new_id}
+    The id comes from the URL path; ownership is verified against the
+    authenticated JWT. A 404 hides unknown ids; a 403 blocks non-owners.
+    """
+    gig_uuid = _parse_gig_id(gig_id)
+    gig = db.query(Gig).filter(Gig.id == gig_uuid).first()
+    if not gig:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gig not found")
+    if gig.teacher_id != current_user.id:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "You do not own this gig",
+        )
+    return gig
 
-@router.put("/{gig_id}")
-def update_gig(gig_id: str, payload: dict):
-    """Update gig details."""
-    return {"message": f"Gig {gig_id} updated successfully"}
+
+def _require_teacher(current_user: User) -> None:
+    if current_user.role != UserRole.teacher:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only teachers can manage gigs",
+        )
+
+
+def _as_json_ready(payload: GigCreate | GigUpdate) -> dict:
+    """Convert pydantic content sub-models into plain dicts for JSONB columns.
+
+    JSONB columns are json-serialized by SQLAlchemy; pydantic model instances
+    are not json-serializable, so syllabus/faqs are dumped to dicts. The
+    learning_outcomes/prerequisites string lists are passed through as-is.
+    """
+    return {
+        "learning_outcomes": payload.learning_outcomes,
+        "syllabus": (
+            [item.model_dump() for item in payload.syllabus]
+            if payload.syllabus is not None
+            else None
+        ),
+        "prerequisites": payload.prerequisites,
+        "faqs": (
+            [item.model_dump() for item in payload.faqs]
+            if payload.faqs is not None
+            else None
+        ),
+    }
+
+
+def _teacher_summary(teacher: User, profile: TeacherProfile | None) -> GigTeacherOut | None:
+    """Assemble the safe public teacher summary from pre-loaded rows.
+
+    Identity comes from the `users` row; marketplace fields come from the
+    one-to-one `teacher_profiles` row when it exists. Profile-only fields stay
+    null when the teacher has no profile — no fabricated values.
+    """
+    if teacher is None:
+        return None
+    return GigTeacherOut(
+        id=teacher.id,
+        name=teacher.full_name,
+        city=profile.city if profile else None,
+        bio=profile.bio if profile else None,
+        education=profile.education if profile else None,
+        languages=profile.languages if profile else None,
+        teaching_mode=profile.teaching_mode if profile else None,
+        hourly_rate=profile.hourly_rate if profile else None,
+    )
+
+
+def _sorted_packages(packages: list[GigPackage]) -> list[GigPackageOut]:
+    """Order a gig's packages Basic → Standard → Premium.
+
+    Ordering is by the canonical tier ranking, never by database insertion
+    order. GigPackage objects are converted to GigPackageOut instances.
+    """
+    return [
+        GigPackageOut.model_validate(p)
+        for p in sorted(packages, key=lambda p: _TIER_RANK.get(p.tier, 99))
+    ]
+
+
+def _gig_rows(db: DbSession):
+    """Base query pairing each marketplace-visible gig with its teacher and
+    teacher profile, eagerly loading packages (no N+1)."""
+    return (
+        db.query(Gig, User, TeacherProfile)
+        .options(selectinload(Gig.packages))
+        .join(User, User.id == Gig.teacher_id)
+        .outerjoin(TeacherProfile, TeacherProfile.user_id == User.id)
+    )
+
+
+def _ensure_unique_slug(db: DbSession, slug: str, exclude_gig_id: uuid.UUID | None = None) -> None:
+    """Reject slugs already used by another gig (409)."""
+    query = db.query(Gig).filter(Gig.slug == slug)
+    if exclude_gig_id is not None:
+        query = query.filter(Gig.id != exclude_gig_id)
+    if query.first():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A gig with this slug already exists",
+        )
+
+
+@router.get("", response_model=list[GigOut])
+def list_gigs(db: DbSession = Depends(get_db)):
+    """List marketplace-visible gigs on the public marketplace.
+
+    Only approved/active gigs are exposed. Drafts, submissions under review,
+    paused, rejected, and archived gigs are never listed publicly. Ordered by
+    creation date (newest first). Each response embeds the public teacher
+    summary and that gig's packages.
+    """
+    rows = (
+        _gig_rows(db)
+        .filter(Gig.status.in_(_PUBLIC_STATUSES))
+        .order_by(Gig.created_at.desc())
+        .all()
+    )
+    result = []
+    for gig, teacher, profile in rows:
+        out = GigOut.model_validate(gig)
+        out.teacher = _teacher_summary(teacher, profile)
+        out.packages = _sorted_packages(gig.packages)
+        result.append(out)
+    return result
+
+
+@router.get("/{gig_id}", response_model=GigOut)
+def get_gig(gig_id: str, db: DbSession = Depends(get_db)):
+    """Retrieve a single marketplace-visible gig.
+
+    Unpublished or archived gigs are hidden from the public endpoint and
+    return 404 rather than leaking private status. The response embeds a
+    public teacher summary (users + teacher_profiles) and the gig's packages.
+    """
+    gig_uuid = _parse_gig_id(gig_id)
+    row = (
+        _gig_rows(db)
+        .filter(Gig.id == gig_uuid, Gig.status.in_(_PUBLIC_STATUSES))
+        .first()
+    )
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Gig not found")
+
+    gig, teacher, profile = row
+    out = GigOut.model_validate(gig)
+    out.teacher = _teacher_summary(teacher, profile)
+    out.packages = _sorted_packages(gig.packages)
+    return out
+
+
+@router.post(
+    "",
+    response_model=GigOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_gig(
+    payload: GigCreate,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Create a gig owned by the authenticated teacher.
+
+    The teacher identity comes exclusively from the JWT; teacher_id is never
+    accepted from the client. New gigs always start in GigStatus.draft, which
+    is set server-side and is not client-settable. A client-supplied slug must
+    be unique across the marketplace (409 on collision).
+    """
+    _require_teacher(current_user)
+
+    if payload.slug:
+        _ensure_unique_slug(db, payload.slug)
+
+    content = _as_json_ready(payload)
+    gig = Gig(
+        teacher_id=current_user.id,
+        title=payload.title,
+        slug=payload.slug,
+        category=payload.category,
+        subject=payload.subject,
+        city=payload.city,
+        price=payload.price,
+        overview=payload.overview,
+        **content,
+    )
+    db.add(gig)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A gig with this slug already exists",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Could not save the gig. Please try again.",
+        )
+    db.refresh(gig)
+    return gig
+
+
+@router.put("/{gig_id}", response_model=GigOut)
+def update_gig(
+    gig_id: str,
+    payload: GigUpdate,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Update the authenticated teacher's own gig.
+
+    Only editable content fields are applied. teacher_id, status, created_at,
+    and updated_at can never be modified through this endpoint. A slug change
+    must not collide with another gig (409 on conflict).
+    """
+    _require_teacher(current_user)
+    gig = _get_owned_gig(db, gig_id, current_user)
+
+    if payload.slug is not None and payload.slug != gig.slug:
+        _ensure_unique_slug(db, payload.slug, exclude_gig_id=gig.id)
+        gig.slug = payload.slug
+
+    if payload.title is not None:
+        gig.title = payload.title
+    if payload.category is not None:
+        gig.category = payload.category
+    if payload.subject is not None:
+        gig.subject = payload.subject
+    if payload.city is not None:
+        gig.city = payload.city
+    if payload.price is not None:
+        gig.price = payload.price
+    if payload.overview is not None:
+        gig.overview = payload.overview
+
+    content = _as_json_ready(payload)
+    if content["learning_outcomes"] is not None:
+        gig.learning_outcomes = content["learning_outcomes"]
+    if content["syllabus"] is not None:
+        gig.syllabus = content["syllabus"]
+    if content["prerequisites"] is not None:
+        gig.prerequisites = content["prerequisites"]
+    if content["faqs"] is not None:
+        gig.faqs = content["faqs"]
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "A gig with this slug already exists",
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Could not update the gig. Please try again.",
+        )
+    db.refresh(gig)
+    return gig
+
 
 @router.delete("/{gig_id}")
-def archive_gig(gig_id: str):
-    """Archive a gig."""
-    return {"message": f"Gig {gig_id} archived successfully"}
+def archive_gig(
+    gig_id: str,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Soft-delete (archive) the authenticated teacher's own gig.
+
+    The row is preserved — needed because classrooms.gig_id foreign-keys to
+    gigs.id — by flipping status to GigStatus.archived instead of deleting.
+    """
+    _require_teacher(current_user)
+    gig = _get_owned_gig(db, gig_id, current_user)
+
+    gig.status = GigStatus.archived
+    try:
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Could not archive the gig. Please try again.",
+        )
+    db.refresh(gig)
+    return {"message": "Gig archived successfully", "gig_id": str(gig.id)}
